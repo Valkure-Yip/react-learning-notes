@@ -118,3 +118,33 @@ const App = () => {
 ```
 
 在上述例子中，`kind` 的 prop 会被安全的保留，它将*不会*被传递给 DOM 中的 `<button>` 元素。 所有其他的 props 会通过 `...other` 对象传递，使得这个组件的应用可以非常灵活。你可以看到它传递了一个 `onClick` 和 `children` 属性。
+
+### JSX子元素
+
+`props.children` 允许任意类型数据
+
+#### 布尔类型、Null 以及 Undefined 将会忽略 
+
+`false`, `null`, `undefined`, and `true` 是合法的子元素。但它们并不会被渲染。以下的 JSX 表达式渲染结果相同：
+
+```jsx
+<div />
+
+<div></div>
+
+<div>{false}</div>
+
+<div>{null}</div>
+
+<div>{undefined}</div>
+
+<div>{true}</div>
+```
+
+这有助于依据特定条件来渲染其他的 React 元素。例如，在以下 JSX 中，仅当 `showHeader`为 `true` 时，才会渲染 `<Header />` 组件：
+
+```jsx
+<div>
+  {showHeader && <Header />}  <Content />
+</div>
+```
