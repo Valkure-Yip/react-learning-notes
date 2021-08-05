@@ -197,6 +197,10 @@ React performs the cleanup when the component unmounts. However, as we learned e
 
 ### Tip: Optimizing Performance by Skipping Effects
 
+> **若出现死循环执行effect的bug，需要传入一个空数组作为第二个参数**
+>
+> If you want to run an effect and clean it up only once (on mount and unmount), you can pass an empty array (`[]`) as a second argument. This tells React that your effect doesn’t depend on *any* values from props or state, so it never needs to re-run. 
+
 You can tell React to *skip* applying an effect if certain values haven’t changed between re-renders. To do so, pass an array as an optional **second argument** to `useEffect`:
 
 ```jsx
@@ -371,3 +375,23 @@ function FriendListItem(props) {
 **Do two components using the same Hook share state?** 
 
 No. Custom Hooks are a mechanism to reuse *stateful logic* (such as setting up a subscription and remembering the current value), but every time you use a custom Hook, all state and effects inside of it are fully isolated.
+
+
+
+### IMPORTANT: hook update is ASYCHRONOUS !!!
+
+https://stackoverflow.com/questions/55983047/strange-behavior-of-react-hooks-delayed-data-update
+
+```tsx
+// switch to next event
+  const handleClickNext = () => {
+    if (eventIndex === store.crashEventList.length - 1) {
+      setEventIndex(0);
+    } else {
+      setEventIndex(eventIndex + 1);
+    }
+    setCurrentEvent(store.crashEventList[eventIndex]);
+  };
+```
+
+上面代码里`setCurrentEvent(store.crashEventList[eventIndex]`里面的`eventIndex`**不是最新的值**

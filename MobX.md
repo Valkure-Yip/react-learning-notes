@@ -2,7 +2,7 @@
 
 > state management solution of React
 
-MobX本质上是帮助开发者建立一个独立于react组件的发布订阅模式。通过`makeObservable`等方法，创建一个可订阅数据结构，并通过`mobx-react`中的`observe()`创建HOC，来让react组件订阅这些数据结构变化。
+MobX本质上是帮助开发者建立一个独立于react组件的发布订阅模式。通过`makeObservable`等方法，创建一个可订阅数据结构，并通过`mobx-react`中的`observer()`创建HOC，来让react组件订阅这些数据结构变化。
 
 ## core concepts
 
