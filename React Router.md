@@ -234,6 +234,20 @@ function usePageViews() {
 
 `useParams` returns an object of key/value pairs of URL parameters. Use it to access `match.params` of the current `<Route>`.
 
+e.g. https://reactrouter.com/web/example/url-params
+
+用来读取url中动态部分，比如`detail/:issueId`
+
+在定义路由时写明`<Route path="/detail/:issueId">`
+
+访问路由时，比如`history.push("/detail/12345")`
+
+在路由所在当页，可读取到`issueId`内容：
+
+```tsx
+const { issueId } = useParams<{ issueId?: string }>();
+```
+
 
 
 #### [`useRouteMatch`](https://reactrouter.com/web/api/Hooks/useroutematch)

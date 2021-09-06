@@ -395,3 +395,13 @@ https://stackoverflow.com/questions/55983047/strange-behavior-of-react-hooks-del
 ```
 
 上面代码里`setCurrentEvent(store.crashEventList[eventIndex]`里面的`eventIndex`**不是最新的值**
+
+
+
+### Infinite loop with `useEffect()`
+
+如果在useEffect中更新state，会触发页面渲染，使useEffect被重新执行，进入无限循环。
+
+[How to Solve the Infinite Loop of React.useEffect()](https://dmitripavlutin.com/react-useeffect-infinite-loop/)
+
+解决办法：使用dependency array参数，明确要监听的属性，避免多余执行
