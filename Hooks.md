@@ -216,6 +216,82 @@ useEffect(() => {
 
 
 
+## UseRef: 获取dom & 存储变量
+
+```js
+const refContainer = useRef(initialValue);
+...
+refContainer.current = ...
+```
+
+`useRef` returns a mutable ref object whose `.current` property is initialized to the passed argument (`initialValue`). The returned object **will persist for the full lifetime of the component**.
+
+You might be familiar with refs primarily as a way to [access the DOM](https://reactjs.org/docs/refs-and-the-dom.html). If you pass a ref object to React with `<div ref={myRef} />`, React will set its `.current` property to the corresponding DOM node whenever that node changes.
+
+However, `useRef()` is useful for more than the `ref` attribute. It’s **[handy for keeping any mutable value around](https://reactjs.org/docs/hooks-faq.html#is-there-something-like-instance-variables)** similar to how you’d use instance fields in classes.
+
+
+
+## `useCallback`
+
+```js
+const memoizedCallback = useCallback(
+  () => {
+    doSomething(a, b);
+  },
+  [a, b],
+);
+```
+
+Returns a [memoized](https://en.wikipedia.org/wiki/Memoization) callback.
+
+Pass an inline callback and an array of dependencies. `useCallback` will return a memoized version of the callback that only changes if one of the dependencies has changed. This is useful when passing callbacks to optimized child components that rely on reference equality to prevent unnecessary renders (e.g. `shouldComponentUpdate`).
+
+`useCallback(fn, deps)` is equivalent to `useMemo(() => fn, deps)`.
+
+> Note
+>
+> The array of dependencies is not passed as arguments to the callback. Conceptually, though, that’s what they represent: every value referenced inside the callback should also appear in the dependencies array. In the future, a sufficiently advanced compiler could create this array automatically.
+>
+> We recommend using the [`exhaustive-deps`](https://github.com/facebook/react/issues/14920) rule as part of our [`eslint-plugin-react-hooks`](https://www.npmjs.com/package/eslint-plugin-react-hooks#installation) package. It warns when dependencies are specified incorrectly and suggests a fix.
+
+
+
+- 未用 useCallback 包起来的函数，每次渲染都会重新生成，会导致:
+   a. 以该函数为依赖项的 useEffect，每次渲染都会执行副作用(加了等于白加) b. 如果该函数是子组件的props，那么会导致子组件每次都跟着重新渲染
+
+- useCallback可以使得函数在每次渲染时都保持相同(同一个) 这样可以减少不必要的副作用，极大地避免子组件无意义的重新渲染
+
+- useCallback 会根据 dependencies 参数是否变化，来决定是否重新生成function 应该结合实际应用场景，给 useCallback 添加正确的 dependencies
+
+- 每次渲染都会重新定义普通函数和变量，如果函数作为依赖项，可能会导致useEffect被无意义执行 如果函数不依赖组件内部变量(state，props)，可以直接定义到组件外部去 如果依赖组件内部变量，则请正确使用 useCallback
+
+
+
+## `useMemo`
+
+```js
+const memoizedValue = useMemo(() => computeExpensiveValue(a, b), [a, b]);
+```
+
+Returns a [memoized](https://en.wikipedia.org/wiki/Memoization) value.
+
+Pass a “create” function and an array of dependencies. `useMemo` will only recompute the memoized value when one of the dependencies has changed. This optimization helps to avoid expensive calculations on every render.
+
+Remember that the function passed to `useMemo` runs during rendering. Don’t do anything there that you wouldn’t normally do while rendering. For example, side effects belong in `useEffect`, not `useMemo`.
+
+If no array is provided, a new value will be computed on every render.
+
+**You may rely on `useMemo` as a performance optimization, not as a semantic guarantee.** In the future, React may choose to “forget” some previously memoized values and recalculate them on next render, e.g. to free memory for offscreen components. Write your code so that it still works without `useMemo` — and then add it to optimize performance.
+
+> Note
+>
+> The array of dependencies is not passed as arguments to the function. Conceptually, though, that’s what they represent: every value referenced inside the function should also appear in the dependencies array. In the future, a sufficiently advanced compiler could create this array automatically.
+>
+> We recommend using the [`exhaustive-deps`](https://github.com/facebook/react/issues/14920) rule as part of our [`eslint-plugin-react-hooks`](https://www.npmjs.com/package/eslint-plugin-react-hooks#installation) package. It warns when dependencies are specified incorrectly and suggests a fix.
+
+
+
 
 
 ## 使用多个hook：必须按顺序
@@ -405,3 +481,21 @@ https://stackoverflow.com/questions/55983047/strange-behavior-of-react-hooks-del
 [How to Solve the Infinite Loop of React.useEffect()](https://dmitripavlutin.com/react-useeffect-infinite-loop/)
 
 解决办法：使用dependency array参数，明确要监听的属性，避免多余执行
+
+
+
+## 第三方hook
+
+useSearchParams
+
+
+
+## 使用hooks注意
+
+- 保证 State 完整性的同时，也要保证它的最小化
+- 数据如果能从已有的 State 中计算得到，那么我们就应该始终在用的时候去计算，而不要把计算的
+
+结果存到某个 State 中
+
+
+
