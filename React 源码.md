@@ -22,7 +22,7 @@ core api 实现解析（较老react版本）[The React Source Code: a Beginner�
 
 Bookmark:https://react.iamkasong.com/diff/multi.html#%E5%A4%84%E7%90%86%E7%A7%BB%E5%8A%A8%E7%9A%84%E8%8A%82%E7%82%B9
 
-
+build your own react https://pomb.us/build-your-own-react/
 
 ### React 要解决的问题
 
@@ -45,6 +45,8 @@ JS可以操作DOM，`GUI渲染线程`与`JS线程`是互斥的。所以**JS脚�
 
 
 **解决办法**：
+
+**Concurrent mode**: [Introducing Concurrent Mode (Experimental) – React](https://reactjs.org/docs/concurrent-mode-intro.html)
 
 在浏览器每一帧的时间中，预留一些时间给JS线程，`React`利用这部分时间更新组件（可以看到，在[源码 (opens new window)](https://github.com/facebook/react/blob/1fb18e22ae66fdb1dc127347e169e73948778e5a/packages/scheduler/src/forks/SchedulerHostConfig.default.js#L119)中，预留的初始时间是5ms）。
 
@@ -403,7 +405,7 @@ function beginWork(
 从该函数名就能看出这是`Reconciler`模块的核心部分。那么他究竟做了什么呢？
 
 - 对于`mount`的组件，他会创建新的`子Fiber节点`
-- 对于`update`的组件，他会将当前组件与该组件在上次更新时对应的`Fiber节点`比较（也就是俗称的`Diff`算法），将比较的结果生成新`Fiber节点`
+- 对于`update`的组件，他会将当前组件与该组件在上次更新时对应的`Fiber节点`比较（也就是俗称的**`Diff`算法**），将比较的结果生成新`Fiber节点`
 
 ```js
 export function reconcileChildren(
@@ -948,6 +950,8 @@ e.g.: 请判断如下`JSX对象`对应的`DOM`元素是否可以复用：
 
 
 ### State
+
+
 
 ### Hooks
 
