@@ -499,3 +499,18 @@ useSearchParams
 
 
 
+## forceUpdate with hook
+
+[javascript - How can I force a component to re-render with hooks in React? - Stack Overflow](https://stackoverflow.com/questions/53215285/how-can-i-force-a-component-to-re-render-with-hooks-in-react)
+
+write a hook like `const [, forceUpdate] = useState({});` to force a re-render manually!
+
+```js
+const [, forceUpdate] = useState({});
+...
+// in code
+forceUpdate({})
+```
+
+
+
