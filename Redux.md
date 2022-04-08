@@ -43,7 +43,7 @@ npm install redux
 yarn add redux
 ```
 
-## Action, reducer, store, dispatch, selector
+## Action, action creator, reducer, store, dispatch, selector
 
 [Terminology](https://redux.js.org/tutorials/essentials/part-1-overview-concepts#terminology)
 
@@ -152,7 +152,7 @@ export const { increment, decrement, incrementByAmount } = counterSlice.actions
 export default counterSlice.reducer
 ```
 
-using **action** function:
+`createSlice` automatically generates **action creators** with the same names as the reducer functions we wrote:
 
 ```js
 console.log(counterSlice.actions.increment())
@@ -259,3 +259,148 @@ ReactDOM.render(
 
 
 ###  Async Logic and Data Fetching
+
+Redux Toolkit's `configureStore` function [automatically sets up the thunk middleware by default](https://redux-toolkit.js.org/api/getDefaultMiddleware#included-default-middleware), so we can pass *thunk functions* directly to `store.dispatch` 
+
+![Redux async data flow diagram](/Users/zhitong.ye/Desktop/zhitong_dev_notes/react-learning-notes/Redux.assets/ReduxAsyncDataFlowDiagram-d97ff38a0f4da0f327163170ccc13e80.gif)
+
+
+
+#### thunk function
+
+[What the heck is a 'thunk'?](https://daveceddia.com/what-is-a-thunk/)
+
+在同步情景里我们通过dispatch触发一个action给reducer，action只是一个对象，包含数据变化。比如
+
+ ```js
+ // someActionCreator(): action object
+ dispatch(someActionCreator())
+ ```
+
+ 但如果我们想执行更复杂的操作，就需要dispatch一个函数（比如异步操作），并由一个中间件（redux-thunk）执行这个函数，在执行过程中触发一个个action传给reducer，这个函数就是thunk
+
+ ```js
+ // someThunkCreator
+ dispatch(someThunkCreator())
+ ```
+
+ 
+
+A **thunk function** will always be called with `(dispatch, getState)` as its arguments, and you can use them inside the thunk as needed.
+
+Thunks typically dispatch plain actions using action creators, like `dispatch(increment())`:
+
+```js
+const store = configureStore({ reducer: counterReducer })
+
+const exampleThunkFunction = (dispatch, getState) => {
+  const stateBefore = getState()
+  console.log(`Counter before: ${stateBefore.counter}`)
+  dispatch(increment())
+  const stateAfter = getState()
+  console.log(`Counter after: ${stateAfter.counter}`)
+}
+
+store.dispatch(exampleThunkFunction)
+```
+
+For consistency with dispatching normal action objects, we typically write these as **thunk action creators**, which return the thunk function. These action creators can take arguments that can be used inside the thunk.
+
+```js
+const logAndAdd = amount => {
+  return (dispatch, getState) => {
+    const stateBefore = getState()
+    console.log(`Counter before: ${stateBefore.counter}`)
+    dispatch(incrementByAmount(amount))
+    const stateAfter = getState()
+    console.log(`Counter after: ${stateAfter.counter}`)
+  }
+}
+
+store.dispatch(logAndAdd(5))
+```
+
+
+
+#### ``createAsyncThunk`` &`extraReducers`
+
+异步操作通常以下几步，我们需要在每一部的时候让*thunk function* dispatch一个action
+
+- A "start" action is dispatched before the request, to indicate that the request is in progress. This may be used to track loading state to allow skipping duplicate requests or show loading indicators in the UI.
+- The async request is made
+- Depending on the request result, the async logic dispatches either a "success" action containing the result data, or a "failure" action containing error details. The reducer logic clears the loading state in both cases, and either processes the result data from the success case, or stores the error value for potential display.
+
+`createAsyncThunk`可以生成这样一个thunk function，automatically dispatch those "start/success/failure" actions for you.
+
+`createAsyncThunk` accepts two arguments:
+
+- A string that will be used as the **prefix** for the generated action types
+- A "payload creator" callback function that should return a **`Promise`** containing some data, or a rejected `Promise` with an error
+
+```js
+import { createSlice, nanoid, createAsyncThunk } from '@reduxjs/toolkit'
+import { client } from '../../api/client'
+
+const initialState = {
+  posts: [],
+  status: 'idle',
+  error: null
+}
+
+export const fetchPosts = createAsyncThunk('posts/fetchPosts', async () => {
+  const response = await client.get('/fakeApi/posts')
+  return response.data
+})
+```
+
+```js
+dispatch(fetchPosts())
+```
+
+`fetchPosts`会在promise不同阶段dispatch不同的action (pending/fufilled/rejected):
+
+```
+posts/fetchPosts/pending
+posts/fetchPosts/fufilled
+posts/fetchPosts/rejected
+```
+
+
+
+在`createSlice`的`extraReducers`里面配置相应reducer来处理这些action
+
+```js
+export const fetchPosts = createAsyncThunk('posts/fetchPosts', async () => {
+  const response = await client.get('/fakeApi/posts')
+  return response.data
+})
+
+const postsSlice = createSlice({
+  name: 'posts',
+  initialState,
+  reducers: {
+    // omit existing reducers here
+  },
+  extraReducers(builder) {
+    builder
+      .addCase(fetchPosts.pending, (state, action) => {
+        state.status = 'loading'
+      })
+      .addCase(fetchPosts.fulfilled, (state, action) => {
+        state.status = 'succeeded'
+        // Add any fetched posts to the array
+        state.posts = state.posts.concat(action.payload)
+      })
+      .addCase(fetchPosts.rejected, (state, action) => {
+        state.status = 'failed'
+        state.error = action.error.message
+      })
+  }
+})
+```
+
+We'll handle all three action types that could be dispatched by the thunk, based on the `Promise` we returned:
+
+- When the request starts, we'll set the `status` enum to `'loading'`
+- If the request succeeds, we mark the `status` as `'succeeded'`, and add the fetched posts to `state.posts`
+- If the request fails, we'll mark the `status` as `'failed'`, and save any error message into the state so we can display it
