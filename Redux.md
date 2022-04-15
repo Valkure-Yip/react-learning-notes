@@ -258,6 +258,71 @@ ReactDOM.render(
 
 
 
+### prepare action payloads
+
+```js
+// postsSlice.js
+const postsSlice = createSlice({
+  name: 'posts',
+  initialState,
+  reducers: {
+    postAdded(state, action) {
+      state.push(action.payload)
+    },
+  },
+})
+```
+在dispatch action之前如果要对payload有一些固定处理，比如加一个nanoid：
+```js
+// biz logic 
+dispatch(
+  postAdded({
+    id: nanoid(),
+    title,
+    content,
+  })
+);
+```
+
+可以用`createSlice`的"prepare callback":
+
+The "prepare callback" function can take multiple arguments, generate random values like unique IDs, and run whatever other synchronous logic is needed to decide what values go into the action object. 
+
+It should then return an object with the `payload` field inside. (The return object may also contain a `meta` field, which can be used to add extra descriptive values to the action, and an `error` field, which should be a boolean indicating whether this action represents some kind of an error.)
+
+```js
+const postsSlice = createSlice({
+  name: 'posts',
+  initialState,
+  reducers: {
+    postAdded: {
+      reducer(state, action) {
+        state.push(action.payload)
+      },
+      prepare(title, content) {
+        return {
+          payload: {
+            id: nanoid(),
+            title,
+            content
+          }
+        }
+      }
+    }
+    // other reducers here
+  }
+})
+```
+
+使用dispatch：
+
+```js
+dispatch(postAdded(title, content))
+```
+
+
+
+
 ###  Async Logic and Data Fetching
 
 Redux Toolkit's `configureStore` function [automatically sets up the thunk middleware by default](https://redux-toolkit.js.org/api/getDefaultMiddleware#included-default-middleware), so we can pass *thunk functions* directly to `store.dispatch` 
@@ -404,3 +469,4 @@ We'll handle all three action types that could be dispatched by the thunk, based
 - When the request starts, we'll set the `status` enum to `'loading'`
 - If the request succeeds, we mark the `status` as `'succeeded'`, and add the fetched posts to `state.posts`
 - If the request fails, we'll mark the `status` as `'failed'`, and save any error message into the state so we can display it
+
