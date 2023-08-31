@@ -70,7 +70,30 @@ class Example extends React.Component {
 }
 ```
 
+### updating state based on previous state `setState(()=>{})`
 
+https://react.dev/reference/react/useState#updating-state-based-on-the-previous-state
+
+Suppose the `age` is `42`. This handler calls `setAge(age + 1)` three times:
+
+```js
+function handleClick() {
+  setAge(age + 1); // setAge(42 + 1)
+  setAge(age + 1); // setAge(42 + 1)
+  setAge(age + 1); // setAge(42 + 1)
+}
+```
+
+However, after one click, `age` will only be `43` rather than `45`! This is because calling the `set` function [does not update](https://react.dev/learn/state-as-a-snapshot) the `age` state variable in the already running code. So each `setAge(age + 1)` call becomes `setAge(43)`.
+**pass an *updater function*** to `setAge` instead of the next state:
+
+```js
+function handleClick() {
+  setAge(a => a + 1); // setAge(42 => 43)
+  setAge(a => a + 1); // setAge(43 => 44)
+  setAge(a => a + 1); // setAge(44 => 45)
+}
+```
 
 ## Effect Hook
 
