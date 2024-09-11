@@ -33,8 +33,8 @@ build your own react https://pomb.us/build-your-own-react/
 
 这两类场景可以概括为：
 
-- CPU的瓶颈
-- IO的瓶颈
+- **CPU的瓶颈**
+- **IO的瓶颈**
 
 #### CPU 瓶颈
 
@@ -81,6 +81,7 @@ JS可以操作DOM，`GUI渲染线程`与`JS线程`是互斥的。所以**JS脚�
 在**Reconciler**中，`mount`的组件会调用[mountComponent (opens new window)](https://github.com/facebook/react/blob/15-stable/src/renderers/dom/shared/ReactDOMComponent.js#L498)，`update`的组件会调用[updateComponent (opens new window)](https://github.com/facebook/react/blob/15-stable/src/renderers/dom/shared/ReactDOMComponent.js#L877)。这两个方法都会递归更新子组件。
 
 由于**递归执行**，所以更新一旦开始，中途就无法中断。当层级很深时，递归更新时间超过了16ms，用户交互就会卡顿。
+解决办法：用**可中断的异步更新**代替**同步的更新**
 
 
 
@@ -90,27 +91,89 @@ JS可以操作DOM，`GUI渲染线程`与`JS线程`是互斥的。所以**JS脚�
 
 ### React 16 (new)： Fiber 架构
 
+fiber架构提供的新能力：
+
+- 为不同任务分配优先级
+- 暂停当前任务，以后继续执行
+- 退出已无必要的任务
+- 复用之前执行过的任务
+
+主要组层部分：
+
 - Scheduler（调度器）—— 调度任务的优先级，高优任务优先进入**Reconciler**
-- Reconciler（协调器）—— 负责找出变化的组件
+- Reconciler（协调器）—— 负责找出变化的组件，在vdom上打标记(增删改)
 - Renderer（渲染器）—— 负责将变化的组件渲染到页面上
 
-在`React15`及以前，`Reconciler`采用递归的方式创建虚拟DOM，递归过程是不能中断的。如果组件树的层级很深，递归会占用线程很多时间，造成卡顿。
+在`React15`及以前，`Reconciler`采用递归（一个运行上下文**stack**）的方式创建虚拟DOM，递归过程是不能中断的。如果组件树的层级很深，递归会占用线程很多时间，造成卡顿。
 
-为了解决这个问题，`React16`将**递归的无法中断的更新**重构为**异步的可中断更新**，由于曾经用于递归的**虚拟DOM**数据结构已经无法满足需要。于是，全新的`Fiber`架构应运而生。
+为了解决这个问题，`React16`将**递归的无法中断的更新**重构为**异步的可中断更新**：重构了一个**新的递归stack**，可以暂停、恢复，退出。每一个fiber就是一个virtual stack  frame
+
+**React16 更新流程：**
+![更新流程](React 源码.assets/process.png)其中红框中的步骤随时可能由于以下原因被中断：
+
+- 有其他更高优任务需要先更新
+- 当前帧没有剩余时间
 
 [Fiber架构的心智模型](https://react.iamkasong.com/process/fiber-mental.html)： 代数效应
 
-
-
 `Fiber`包含三层含义：
 
-1. 作为**架构**来说，之前`React15`的`Reconciler`采用递归的方式执行，数据保存在递归调用栈中，所以被称为`stack Reconciler`。`React16`的`Reconciler`基于`Fiber节点`实现，被称为`Fiber Reconciler`。
+1. 作为**架构**来说，之前`React15`的`Reconciler`采用递归的方式执行，数据保存在递归调用栈中，所以被称为**`stack Reconciler`**。`React16`的`Reconciler`基于`Fiber节点`实现，被称为**`Fiber Reconciler`**。
 2. 作为**静态的数据结构**来说，每个`Fiber节点`对应一个`React element`，保存了该组件的类型（函数组件/类组件/原生组件...）、对应的DOM节点等信息。
 3. 作为**动态的工作单元**来说，每个`Fiber节点`保存了本次更新中该组件改变的状态、要执行的工作（需要被删除/被插入页面中/被更新...）。
 
 
 
-#### 架构
+#### Fiber 节点
+
+```js
+function FiberNode(
+  tag: WorkTag,
+  pendingProps: mixed,
+  key: null | string,
+  mode: TypeOfMode,
+) {
+  // 作为静态数据结构的属性
+  this.tag = tag;
+  this.key = key;
+  this.elementType = null;
+  this.type = null;
+  this.stateNode = null;
+
+  // 用于连接其他Fiber节点形成Fiber树
+  this.return = null;
+  this.child = null;
+  this.sibling = null;
+  this.index = 0;
+
+  this.ref = null;
+
+  // 作为动态的工作单元的属性
+  this.pendingProps = pendingProps; // 本次执行的props
+  this.memoizedProps = null; // 缓存上次执行的props
+  this.updateQueue = null;
+  this.memoizedState = null;
+  this.dependencies = null;
+  this.pendingWorkPriority // 当前更行的优先级，越大越低
+
+  this.mode = mode;
+
+  this.effectTag = NoEffect;
+  this.nextEffect = null;
+
+  this.firstEffect = null;
+  this.lastEffect = null;
+
+  // 调度优先级相关
+  this.lanes = NoLanes;
+  this.childLanes = NoLanes;
+
+  // 指向该fiber在另一次更新时对应的fiber
+  this.alternate = null;
+}
+```
+
+其中靠这些属性形成树：
 
 ```js
 // 指向父级Fiber节点
@@ -136,7 +199,7 @@ function App() {
 
 对应：
 
-<img src="/Users/zhitong.ye/Desktop/开发技术笔记/react-learning-notes/React 源码.assets/fiber.png" alt="Fiber架构" style="zoom:33%;" />
+![Fiber架构](React 源码.assets/fiber-1724571705269-7.png)
 
 #### 静态数据结构
 
@@ -164,6 +227,7 @@ this.memoizedProps = null;
 this.updateQueue = null;
 this.memoizedState = null;
 this.dependencies = null;
+this.pendingWorkPriority // 当前更行的优先级，越大越低
 
 this.mode = mode;
 
@@ -175,7 +239,7 @@ this.firstEffect = null;
 this.lastEffect = null;
 ```
 
-
+### Fiber 更新原理
 
 #### 双缓存
 
@@ -191,7 +255,7 @@ this.lastEffect = null;
 
 #### 双缓存Fiber树
 
-在`React`中最多会同时存在两棵`Fiber树`。当前屏幕上显示内容对应的`Fiber树`称为`current Fiber树`，正在内存中构建的`Fiber树`称为`workInProgress Fiber树`。
+在`React`中最多会同时存在**两棵`Fiber树`**。当前屏幕上显示内容对应的`Fiber树`称为**`current Fiber树`**，正在内存中构建的`Fiber树`称为**`workInProgress Fiber树`**。
 
 在`React`中最多会同时存在两棵`Fiber树`。当前屏幕上显示内容对应的`Fiber树`称为`current Fiber树`，正在内存中构建的`Fiber树`称为`workInProgress Fiber树`。
 
@@ -231,7 +295,7 @@ ReactDOM.render(<App/>, document.getElementById('root'));
 
 `fiberRootNode`的`current`会指向当前页面上已渲染内容对应`Fiber树`，即`current Fiber树`。
 
-<img src="/Users/zhitong.ye/Desktop/开发技术笔记/react-learning-notes/React 源码.assets/rootfiber.png" alt="rootFiber" style="zoom: 50%;" />
+![rootFiber](React 源码.assets/rootfiber-1724574819685-10.png)
 
 ```js
 fiberRootNode.current = rootFiber;
@@ -243,19 +307,19 @@ fiberRootNode.current = rootFiber;
 
 在构建`workInProgress Fiber树`时会尝试复用`current Fiber树`中已有的`Fiber节点`内的属性，在`首屏渲染`时只有`rootFiber`存在对应的`current fiber`（即`rootFiber.alternate`）。
 
-<img src="/Users/zhitong.ye/Desktop/开发技术笔记/react-learning-notes/React 源码.assets/workInProgressFiber.png" alt="workInProgressFiber" style="zoom:50%;" />
+![workInProgressFiber](React 源码.assets/workInProgressFiber-1724574850611-13.png)
 
 1. 图中右侧已构建完的`workInProgress Fiber树`在`commit阶段`渲染到页面。
 
 此时`DOM`更新为右侧树对应的样子。`fiberRootNode`的`current`指针指向`workInProgress Fiber树`使其变为`current Fiber 树`。
 
-<img src="/Users/zhitong.ye/Desktop/开发技术笔记/react-learning-notes/React 源码.assets/wipTreeFinish.png" alt="workInProgressFiberFinish" style="zoom:50%;" />
+![workInProgressFiberFinish](React 源码.assets/wipTreeFinish-1724575675123-16.png)
 
 #### [#](https://react.iamkasong.com/process/doubleBuffer.html#update时)update时
 
 1. 接下来我们点击`p节点`触发状态改变，这会开启一次新的`render阶段`并构建一棵新的`workInProgress Fiber 树`。
 
-<img src="/Users/zhitong.ye/Desktop/开发技术笔记/react-learning-notes/React 源码.assets/wipTreeUpdate.png" alt="wipTreeUpdate" style="zoom:50%;" />
+![wipTreeUpdate](React 源码.assets/wipTreeUpdate-1724575690517-19.png)
 
 和`mount`时一样，`workInProgress fiber`的创建可以复用`current Fiber树`对应的节点数据。
 
@@ -263,27 +327,50 @@ fiberRootNode.current = rootFiber;
 
 1. `workInProgress Fiber 树`在`render阶段`完成构建后进入`commit阶段`渲染到页面上。渲染完毕后，`workInProgress Fiber 树`变为`current Fiber 树`。
 
-<img src="/Users/zhitong.ye/Desktop/开发技术笔记/react-learning-notes/React 源码.assets/currentTreeUpdate.png" alt="currentTreeUpdate" style="zoom:50%;" />
+![currentTreeUpdate](React 源码.assets/currentTreeUpdate-1724575813592-22.png)
 
 
 
-### Render
+### Render阶段
 
-**创建fiber节点，构建fiber树**
+render调用栈：https://blog.logrocket.com/deep-dive-react-fiber/#what-react-fiber
+![createFiberFromTypeAndProps() Call Stack](React 源码.assets/function-call-stack-1.png)
+
+`render阶段`开始于`performSyncWorkOnRoot`或`performConcurrentWorkOnRoot`方法的调用。这取决于本次更新是同步更新还是异步更新。这两个方法分别调用workLoop:
+
+```js
+// performSyncWorkOnRoot会调用该方法
+function workLoopSync() {
+  while (workInProgress !== null) {
+    performUnitOfWork(workInProgress);
+  }
+}
+
+// performConcurrentWorkOnRoot会调用该方法
+function workLoopConcurrent() {
+  while (workInProgress !== null && !shouldYield()) {
+    performUnitOfWork(workInProgress);
+  }
+}
+```
+
+#### `performUnitOfWork`
+
+`performUnitOfWork()` takes a fiber node as an input argument, **gets the alternate** of the node, and calls `beginWork()`. This is the equivalent of starting the execution of the function execution contexts in the execution stack.
 
 我们知道`Fiber Reconciler`是从`Stack Reconciler`重构而来，通过遍历的方式实现可中断的递归，所以`performUnitOfWork`的工作可以分为两部分：“递”和“归”。
 
-#### [#](https://react.iamkasong.com/process/reconciler.html#递-阶段)“递”阶段
+##### [#](https://react.iamkasong.com/process/reconciler.html#递-阶段)“递”阶段
 
-首先从`rootFiber`开始向下深度优先遍历。为遍历到的每个`Fiber节点`调用[beginWork方法 (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberBeginWork.new.js#L3058)。
+首先从`rootFiber`开始向下深度优先遍历。为遍历到的每个`Fiber节点`调用[`beginWork`方法](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberBeginWork.new.js#L3058)。
 
 该方法会根据传入的`Fiber节点`创建`子Fiber节点`，并将这两个`Fiber节点`连接起来。
 
 当遍历到叶子节点（即没有子组件的组件）时就会进入“归”阶段。
 
-#### [#](https://react.iamkasong.com/process/reconciler.html#归-阶段)“归”阶段
+##### [#](https://react.iamkasong.com/process/reconciler.html#归-阶段)“归”阶段
 
-在“归”阶段会调用[completeWork (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCompleteWork.new.js#L652)处理`Fiber节点`。
+在“归”阶段会调用[`completeWork`](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCompleteWork.new.js#L652)处理`Fiber节点`。
 
 当某个`Fiber节点`执行完`completeWork`，如果其存在`兄弟Fiber节点`（即`fiber.sibling !== null`），会进入其`兄弟Fiber`的“递”阶段。
 
@@ -291,7 +378,7 @@ fiberRootNode.current = rootFiber;
 
 “递”和“归”阶段会交错执行直到“归”到`rootFiber`。至此，`render阶段`的工作就结束了。
 
-#### [#](https://react.iamkasong.com/process/reconciler.html#例子)例子
+##### [#](https://react.iamkasong.com/process/reconciler.html#例子)例子
 
 以上一节的例子举例：
 
@@ -308,7 +395,7 @@ function App() {
 ReactDOM.render(<App />, document.getElementById("root"));
 ```
 
-对应的`Fiber树`结构： <img src="/Users/zhitong.ye/Desktop/开发技术笔记/react-learning-notes/React 源码.assets/fiber-8244616.png" alt="Fiber架构" style="zoom:33%;" />
+对应的`Fiber树`结构： ![Fiber架构](React 源码.assets/fiber-1724576653447-27.png)
 
 `render阶段`会依次执行：
 
@@ -478,7 +565,7 @@ export const Deletion = /*                 */ 0b00000000001000;
 
 ##### beginWork 流程图
 
-![beginWork流程图](/Users/zhitong.ye/Desktop/开发技术笔记/react-learning-notes/React 源码.assets/beginWork.png)
+![beginWork流程图](React 源码.assets/beginWork-1724577271427-30.png)
 
 #### completeWork （归）
 
@@ -667,15 +754,20 @@ commitRoot(root);
 
 #### completeWork 流程图
 
-![completeWork流程图](/Users/zhitong.ye/Desktop/开发技术笔记/react-learning-notes/React 源码.assets/completeWork.png)
+![completeWork流程图](React 源码.assets/completeWork-1724577333023-33.png)
 
 
 
 
 
-### Commit
+### Commit阶段
 
+https://blog.logrocket.com/deep-dive-react-fiber/#what-react-fiber
 
+commit阶段做的事：交换current tree 和 workInProgress tree 的 root指针。
+react有一个内部timer，每16ms(1 frame) 就暂停当前unit of work，将权限移交回main thread，让浏览器渲染，然后再下一针继续构建workinprogress tree，完成后commit并渲染
+
+TODO https://react.iamkasong.com/renderer/prepare.html#before-mutation-%E4%B9%8B%E5%89%8D
 
 
 
@@ -949,9 +1041,60 @@ e.g.: 请判断如下`JSX对象`对应的`DOM`元素是否可以复用：
 
 
 
-### State
+### 状态更新 State Update
 
+在`React`中，有如下方法可以触发状态更新（排除`SSR`相关）：
 
+- ReactDOM.render
+- this.setState
+- this.forceUpdate
+- useState
+- useReducer
+
+```shell
+触发状态更新（根据场景调用不同方法）
+
+    |
+    |
+    v
+
+创建Update对象（接下来三节详解）
+
+    |
+    |
+    v
+
+从fiber向上遍历到root（`markUpdateLaneFromFiberToRoot`）
+
+    |
+    |
+    v
+
+调度更新（`ensureRootIsScheduled`）
+
+    |
+    |
+    v
+
+render阶段（`performSyncWorkOnRoot` 或 `performConcurrentWorkOnRoot`）
+
+    |
+    |
+    v
+
+commit阶段（`commitRoot`）
+```
+
+Update的**优先级**：基于人机交互研究的结果，通过Scheduler调度优先级
+
+- 生命周期方法：同步执行。
+- 受控的用户输入：比如输入框内输入文字，同步执行。
+- 交互事件：比如动画，高优先级执行。
+- 其他：比如数据请求，低优先级执行。
+
+![优先级如何决定更新的顺序](React 源码.assets/update-process.png)
+
+> 该例子来自[React Core Team Andrew 向网友讲解 Update 工作流程的推文](https://twitter.com/acdlite/status/978412930973687808)
 
 ### Hooks
 

@@ -95,6 +95,24 @@ function handleClick() {
 }
 ```
 
+### React useState 传入函数
+
+1. 传入set函数中：解决异步更新问题 https://react.dev/reference/react/useState#updating-state-based-on-the-previous-state
+
+```js
+ setAge(a => a + 1); // setAge(42 => 43)
+ setAge(a => a + 1); // setAge(43 => 44)
+ setAge(a => a + 1); // setAge(44 => 45)
+```
+
+2. 传入useState**初始化函数** https://react.dev/reference/react/useState#avoiding-recreating-the-initial-state
+
+```js
+  const [todos, setTodos] = useState(createInitialTodos);
+```
+
+避免每次渲染都执行createInitialTodos
+
 ## Effect Hook
 
 Effect hook: run some additional code (side effect) after React has updated the DOM (`componentDidMount`, `componentDidUpdate`). 
